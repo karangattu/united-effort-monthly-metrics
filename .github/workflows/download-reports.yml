@@ -24,12 +24,6 @@ jobs:
                   pip install -r requirements.txt
                   playwright install chromium
 
-            - name: Create .env file
-              run: |
-                  echo "USERNAME=${{ secrets.APRICOT_USERNAME }}" > .env
-                  echo "PASSWORD=${{ secrets.APRICOT_PASSWORD }}" >> .env
-                  echo "AIRTABLE_TOKEN=${{ secrets.AIRTABLE_TOKEN }}" >> .env
-
             - name: Download Apricot Reports
               run: python apricot_reports.py
 
