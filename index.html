@@ -260,7 +260,7 @@
                 });
 
                 renderDashboard(rows);
-                updateTimestamp();
+                updateTimestampFromCSV(response);
             } catch (error) {
                 document.getElementById('content').innerHTML = `
                     <div class="error">
@@ -300,6 +300,26 @@
             html += '</div>';
 
             document.getElementById('content').innerHTML = html;
+        }
+
+        function updateTimestampFromCSV(response) {
+            const lastModified = response.headers.get('Last-Modified');
+            
+            if (lastModified) {
+                const date = new Date(lastModified);
+                const formatted = date.toLocaleString('en-US', {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                    timeZoneName: 'short'
+                });
+                document.getElementById('lastUpdated').textContent = formatted;
+            } else {
+                updateTimestamp();
+            }
         }
 
         function updateTimestamp() {
