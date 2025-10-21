@@ -41,4 +41,4 @@ python airtable_fetch.py
 python -m http.server 8000
 ```
 
-Then open: `http://localhost:8000/dashboard.html`
+Then open: `http://localhost:8000/index.html`
