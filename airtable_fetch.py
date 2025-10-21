@@ -186,6 +186,10 @@ class AirtableManager:
                 entry.to_csv(summary_path, index=False)
                 print(f"✅ Created: {summary_path.absolute()}")
 
+            airtable_data_path = Path("airtable_data.csv")
+            if airtable_data_path.exists():
+                airtable_data_path.unlink()
+
             return True
         except Exception as e:
             print(f"❌ Error updating summary: {e}")
