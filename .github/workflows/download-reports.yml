@@ -1,45 +1,51 @@
 name: Get Monthly metrics
 
 on:
-    schedule:
-        - cron: "0 9 1-7 * MON"
-    workflow_dispatch:
+  schedule:
+    - cron: "0 9 1-7 * MON"
+  workflow_dispatch:
 
 jobs:
-    download-reports:
-        runs-on: ubuntu-latest
+  download-reports:
+    runs-on: ubuntu-latest
 
-        steps:
-            - name: Checkout code
-              uses: actions/checkout@v5
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
 
-            - name: Set up Python
-              uses: actions/setup-python@v6
-              with:
-                  python-version: "3.12"
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
 
-            - name: Install dependencies
-              run: |
-                  python -m pip install --upgrade pip
-                  pip install -r requirements.txt
-                  playwright install chromium
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          playwright install chromium
 
-            - name: Download Apricot Reports
-              run: python apricot_reports.py
+      - name: Download Apricot Reports
+        env:
+          USERNAME: ${{ secrets.APRICOT_USERNAME }}
+          PASSWORD: ${{ secrets.APRICOT_PASSWORD }}
+        run: python apricot_reports.py
 
-            - name: Fetch and Filter Airtable Data
-              run: python airtable_fetch.py
+      - name: Download Apricot Reports
+        run: python apricot_reports.py
 
-            - name: Upload summary as artifact
-              uses: actions/upload-artifact@v4
-              with:
-                  name: monthly-metrics
-                  path: report_summary.csv
-                  retention-days: 30
+      - name: Fetch and Filter Airtable Data
+        run: python airtable_fetch.py
 
-            - name: Deploy dashboard to GitHub Pages
-              uses: peaceiris/actions-gh-pages@v4
-              with:
-                  github_token: ${{ secrets.GITHUB_TOKEN }}
-                  publish_dir: ./
-                  keep_files: true
+      - name: Upload summary as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: monthly-metrics
+          path: report_summary.csv
+          retention-days: 30
+
+      - name: Deploy dashboard to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./
+          keep_files: true
