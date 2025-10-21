@@ -26,8 +26,9 @@ jobs:
 
       - name: Download Apricot Reports
         env:
-          USERNAME: ${{ secrets.APRICOT_USERNAME }}
-          PASSWORD: ${{ secrets.APRICOT_PASSWORD }}
+          USERNAME: ${{ secrets.USERNAME }}
+          PASSWORD: ${{ secrets.PASSWORD }}
+          AIRTABLE_TOKEN: ${{ secrets.AIRTABLE_TOKEN }}
         run: python apricot_reports.py
 
       - name: Download Apricot Reports
