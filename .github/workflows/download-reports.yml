@@ -34,6 +34,8 @@ jobs:
         run: python apricot_reports.py
 
       - name: Fetch and Filter Airtable Data
+        env:
+          AIRTABLE_TOKEN: ${{ secrets.AIRTABLE_TOKEN }}
         run: python airtable_fetch.py
 
       - name: Upload summary as artifact
