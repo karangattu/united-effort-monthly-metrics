@@ -1,3 +1,4 @@
+import csv
 import os
 import sys
 import time
@@ -185,11 +186,28 @@ class ApricotReportManager:
 
             print(f"✅ Downloaded: {output_path.absolute()}")
 
+            is_valid, validation_error = self._validate_csv(output_path)
+            if not is_valid:
+                print(
+                    "❌ CSV validation failed for "
+                    f"{report_name}: {validation_error}"
+                )
+                print(
+                    "   File retained for manual review at: "
+                    f"{output_path.absolute()}"
+                )
+                raise ValueError(
+                    f"CSV validation failed for {report_name}: "
+                    f"{validation_error}"
+                )
+
             return str(output_path.absolute())
 
         except requests.exceptions.RequestException as e:
             print(f"❌ Error fetching report: {e}")
             return None
+        except ValueError:
+            raise
 
     def test_connection(self):
         """Test the connection and credentials validity."""
@@ -299,6 +317,30 @@ class ApricotReportManager:
 
         return dataframes
 
+    @staticmethod
+    def _validate_csv(file_path):
+        """Ensure the CSV structure is consistent before pandas loads it."""
+        try:
+            with file_path.open(newline="", encoding="utf-8-sig") as handle:
+                reader = csv.reader(handle)
+                header = next(reader, None)
+                if header is None:
+                    return False, "file is empty"
+                expected_columns = len(header)
+                for line_num, row in enumerate(reader, start=2):
+                    if len(row) != expected_columns:
+                        message = (
+                            "inconsistent column count at line "
+                            f"{line_num}: expected {expected_columns}, "
+                            f"found {len(row)}"
+                        )
+                        return False, message
+            return True, None
+        except csv.Error as err:
+            return False, f"CSV parse error: {err}"
+        except UnicodeDecodeError as err:
+            return False, f"encoding error: {err}"
+
 
 def main():
     """Main entry point with CLI argument parsing."""
@@ -352,7 +394,11 @@ Examples:
     results = []
     report_paths = {}
     for report_name, fetch_func in reports:
-        result = fetch_func()
+        try:
+            result = fetch_func()
+        except ValueError as err:
+            print(f"\n❌ {err}")
+            sys.exit(1)
         results.append((report_name, result))
         if result:
             report_paths[report_name] = result
