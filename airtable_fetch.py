@@ -147,13 +147,149 @@ class AirtableManager:
             print(f"❌ Error saving to CSV: {e}")
             return None
 
-    @staticmethod
-    def append_to_summary(record_count):
+    def fetch_event_attendance(self):
         """
-        Append filtered Airtable record count to report_summary.csv.
+        Fetch all attendance records from the Event Attendance table.
+
+        Returns:
+            list: List of attendance records from Airtable
+        """
+        try:
+            all_records = []
+            offset = None
+            event_table_id = "tbl7ePbU3BVJK9x0l"
+            event_url = (
+                f"https://api.airtable.com/v0/"
+                f"{self.base_id}/{event_table_id}"
+            )
+
+            while True:
+                params = {}
+                if offset:
+                    params["offset"] = offset
+
+                response = requests.get(
+                    event_url, headers=self.headers, params=params
+                )
+                response.raise_for_status()
+
+                data = response.json()
+                all_records.extend(data.get("records", []))
+
+                offset = data.get("offset")
+                if not offset:
+                    break
+
+            print(
+                f"✅ Fetched {len(all_records)} attendance records "
+                f"from Event Attendance table"
+            )
+            return all_records
+
+        except requests.exceptions.RequestException as e:
+            print(f"❌ Error fetching from Airtable: {e}")
+            return None
+
+    @staticmethod
+    def calculate_volunteer_return_rate(records):
+        """
+        Calculate volunteer return rate from event attendance records.
+
+        A returning volunteer is one who appears at least twice within
+        a 6-month window.
 
         Args:
-            record_count (int): Number of filtered records
+            records (list): List of attendance records
+
+        Returns:
+            tuple: (return_rate_percentage, period_start, period_end)
+        """
+        if not records:
+            return 0.0, None, None
+
+        data = []
+        for record in records:
+            fields = record.get("fields", {})
+            data.append(fields)
+
+        df = pd.DataFrame(data)
+
+        if df.empty or "Name" not in df.columns or \
+           "Event Date" not in df.columns:
+            print("⚠️  Required columns not found in attendance data")
+            return 0.0, None, None
+
+        today = datetime.now()
+        first_of_current = today.replace(day=1)
+        last_of_previous = first_of_current - timedelta(days=1)
+        first_of_previous = last_of_previous.replace(day=1)
+        six_months_ago = first_of_previous - timedelta(days=180)
+
+        period_start = six_months_ago.strftime("%Y-%m-%d")
+        period_end = last_of_previous.strftime("%Y-%m-%d")
+
+        # Handle Event Date as lookup field (list values)
+        def extract_first_date(date_val):
+            """Extract first date from list or return string."""
+            if isinstance(date_val, list):
+                return date_val[0] if date_val else None
+            return date_val
+
+        df["Event Date"] = df["Event Date"].apply(extract_first_date)
+
+        df["Event Date"] = pd.to_datetime(
+            df["Event Date"], errors="coerce"
+        )
+
+        df_filtered = df[
+            (df["Event Date"] >= six_months_ago)
+            & (df["Event Date"] <= last_of_previous)
+        ].copy()
+
+        if df_filtered.empty:
+            print(
+                f"⚠️  No attendance records found between "
+                f"{period_start} and {period_end}"
+            )
+            return 0.0, period_start, period_end
+
+        volunteer_appearance_count = (
+            df_filtered.groupby("Name").size().reset_index(name="count")
+        )
+
+        total_unique_volunteers = len(volunteer_appearance_count)
+        returning_volunteers = len(
+            volunteer_appearance_count[
+                volunteer_appearance_count["count"] >= 2
+            ]
+        )
+
+        return_rate = (
+            (returning_volunteers / total_unique_volunteers * 100)
+            if total_unique_volunteers > 0 else 0.0
+        )
+
+        print(
+            f"✅ Volunteer Return Rate Analysis "
+            f"({period_start} to {period_end}):"
+        )
+        print(f"   Total unique volunteers: {total_unique_volunteers}")
+        print(f"   Returning volunteers (2+ events): {returning_volunteers}")
+        print(f"   Return rate: {return_rate:.2f}%")
+
+        return return_rate, period_start, period_end
+
+    @staticmethod
+    def append_to_summary(record_count, return_rate=None,
+                          return_rate_period=None):
+        """
+        Append filtered Airtable data counts to report_summary.csv.
+
+        Args:
+            record_count (int): Number of filtered new volunteer records
+            return_rate (float): Volunteer return rate percentage (optional)
+            return_rate_period (tuple): (period_start, period_end) tuple
+                                       (optional)
 
         Returns:
             bool: True if successful, False otherwise
@@ -169,21 +305,36 @@ class AirtableManager:
             period = f"{month_start} to {month_end}"
 
             summary_path = Path("report_summary.csv")
-            entry = pd.DataFrame([{
-                "Period": period,
-                "Record Type": "New Volunteers",
-                "Count": record_count
-            }])
+            entries = [
+                {
+                    "Period": period,
+                    "Record Type": "New Volunteers",
+                    "Count": record_count
+                }
+            ]
+
+            if return_rate is not None and return_rate_period:
+                period_start, period_end = return_rate_period
+                return_rate_period_str = (
+                    f"{period_start} to {period_end}"
+                )
+                entries.append({
+                    "Period": return_rate_period_str,
+                    "Record Type": "Volunteer return rate",
+                    "Count": f"{return_rate:.2f}%"
+                })
+
+            entry_df = pd.DataFrame(entries)
 
             if summary_path.exists():
                 existing_df = pd.read_csv(summary_path)
                 updated_df = pd.concat(
-                    [existing_df, entry], ignore_index=True
+                    [existing_df, entry_df], ignore_index=True
                 )
                 updated_df.to_csv(summary_path, index=False)
                 print(f"✅ Appended to: {summary_path.absolute()}")
             else:
-                entry.to_csv(summary_path, index=False)
+                entry_df.to_csv(summary_path, index=False)
                 print(f"✅ Created: {summary_path.absolute()}")
 
             airtable_data_path = Path("airtable_data.csv")
@@ -236,7 +387,24 @@ Examples:
         else:
             manager.save_to_csv(df_filtered, "airtable_data.csv")
 
-        manager.append_to_summary(len(df_filtered))
+        attendance_records = manager.fetch_event_attendance()
+        return_rate = None
+        return_rate_period = None
+
+        if attendance_records:
+            return_rate, period_start, period_end = (
+                manager.calculate_volunteer_return_rate(
+                    attendance_records
+                )
+            )
+            return_rate_period = (period_start, period_end)
+            print()
+
+        manager.append_to_summary(
+            len(df_filtered),
+            return_rate=return_rate,
+            return_rate_period=return_rate_period
+        )
         return 0
 
     except ValueError as e:

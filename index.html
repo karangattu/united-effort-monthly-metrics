@@ -247,10 +247,15 @@
                 const headers = lines[0].split(',');
                 const rows = lines.slice(1).map(line => {
                     const values = line.split(',');
+                    const countValue = values[2].trim();
+                    let count = countValue;
+                    if (!countValue.includes('%')) {
+                        count = parseInt(countValue) || 0;
+                    }
                     return {
                         Period: values[0].trim(),
                         RecordType: values[1].trim(),
-                        Count: parseInt(values[2].trim()) || 0
+                        Count: count
                     };
                 });
 
@@ -280,11 +285,14 @@
             const period = rows[0].Period;
 
             rows.forEach(row => {
+                const displayValue = typeof row.Count === 'string' 
+                    ? row.Count 
+                    : row.Count.toLocaleString();
                 html += `
                     <div class="metric-card">
                         <div class="metric-title">${row.RecordType}</div>
-                        <div class="metric-count">${row.Count.toLocaleString()}</div>
-                        <div class="metric-period">${period}</div>
+                        <div class="metric-count">${displayValue}</div>
+                        <div class="metric-period">${row.Period}</div>
                     </div>
                 `;
             });
