@@ -1,8 +1,9 @@
-import requests
-import pandas as pd
+import os
 from datetime import datetime, timedelta
 from pathlib import Path
-import os
+
+import pandas as pd
+import requests
 from dotenv import load_dotenv
 
 

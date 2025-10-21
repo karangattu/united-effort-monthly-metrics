@@ -1,11 +1,13 @@
-import requests
-import sys
-from pathlib import Path
 import os
+import sys
+import time
+from datetime import datetime, timedelta
+from pathlib import Path
+
+import pandas as pd
+import requests
 from dotenv import load_dotenv
 from playwright.sync_api import sync_playwright
-import pandas as pd
-from datetime import datetime, timedelta
 
 
 class ApricotReportManager:
@@ -73,7 +75,7 @@ class ApricotReportManager:
 
                 page.get_by_role("button", name="Log In to Apricot").click()
 
-                page.wait_for_load_state("networkidle")
+                time.sleep(5)
 
                 try:
                     continue_btn = page.get_by_role("button", name="Continue")
@@ -84,8 +86,7 @@ class ApricotReportManager:
                     msg = "ℹ️  No Continue button found"
                     print(msg)
 
-                page.wait_for_load_state("networkidle", timeout=15000)
-
+                time.sleep(2)
                 cookies = page.context.cookies()
                 phpsessid = None
                 csrftoken = None
