@@ -34,5 +34,3 @@ env/
 
 .DS_Store
 
-# CSV files (data)
-*.csv
