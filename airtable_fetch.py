@@ -281,8 +281,76 @@ class AirtableManager:
         return return_rate, period_start, period_end
 
     @staticmethod
+    def count_unique_volunteers(records):
+        """
+        Count unique volunteers from event attendance in previous month.
+
+        Args:
+            records (list): List of attendance records
+
+        Returns:
+            tuple: (unique_volunteer_count, period_start, period_end)
+        """
+        if not records:
+            return 0, None, None
+
+        data = []
+        for record in records:
+            fields = record.get("fields", {})
+            data.append(fields)
+
+        df = pd.DataFrame(data)
+
+        if df.empty or "Name" not in df.columns or \
+           "Event Date" not in df.columns:
+            print("⚠️  Required columns not found in attendance data")
+            return 0, None, None
+
+        today = datetime.now()
+        first_of_current = today.replace(day=1)
+        last_of_previous = first_of_current - timedelta(days=1)
+        first_of_previous = last_of_previous.replace(day=1)
+
+        period_start = first_of_previous.strftime("%Y-%m-%d")
+        period_end = last_of_previous.strftime("%Y-%m-%d")
+
+        def extract_first_date(date_val):
+            """Extract first date from list or return string."""
+            if isinstance(date_val, list):
+                return date_val[0] if date_val else None
+            return date_val
+
+        df["Event Date"] = df["Event Date"].apply(extract_first_date)
+
+        df["Event Date"] = pd.to_datetime(
+            df["Event Date"], errors="coerce"
+        )
+
+        df_filtered = df[
+            (df["Event Date"] >= first_of_previous)
+            & (df["Event Date"] <= last_of_previous)
+        ].copy()
+
+        if df_filtered.empty:
+            print(
+                f"⚠️  No attendance records found between "
+                f"{period_start} and {period_end}"
+            )
+            return 0, period_start, period_end
+
+        unique_volunteers = df_filtered["Name"].nunique()
+
+        print(
+            f"✅ Unique Volunteers in {period_start} to {period_end}: "
+            f"{unique_volunteers}"
+        )
+
+        return unique_volunteers, period_start, period_end
+
+    @staticmethod
     def append_to_summary(record_count, return_rate=None,
-                          return_rate_period=None):
+                          return_rate_period=None, unique_volunteers=None,
+                          unique_volunteers_period=None):
         """
         Append filtered Airtable data counts to report_summary.csv.
 
@@ -291,6 +359,9 @@ class AirtableManager:
             return_rate (float): Volunteer return rate percentage (optional)
             return_rate_period (tuple): (period_start, period_end) tuple
                                        (optional)
+            unique_volunteers (int): Count of unique volunteers (optional)
+            unique_volunteers_period (tuple): (period_start, period_end)
+                                              tuple (optional)
 
         Returns:
             bool: True if successful, False otherwise
@@ -313,6 +384,17 @@ class AirtableManager:
                     "Count": record_count
                 }
             ]
+
+            if unique_volunteers is not None and unique_volunteers_period:
+                period_start, period_end = unique_volunteers_period
+                unique_volunteers_period_str = (
+                    f"{period_start} to {period_end}"
+                )
+                entries.append({
+                    "Period": unique_volunteers_period_str,
+                    "Record Type": "Total Volunteers",
+                    "Count": unique_volunteers
+                })
 
             if return_rate is not None and return_rate_period:
                 period_start, period_end = return_rate_period
@@ -391,6 +473,8 @@ Examples:
         attendance_records = manager.fetch_event_attendance()
         return_rate = None
         return_rate_period = None
+        unique_volunteers = None
+        unique_volunteers_period = None
 
         if attendance_records:
             return_rate, period_start, period_end = (
@@ -399,12 +483,19 @@ Examples:
                 )
             )
             return_rate_period = (period_start, period_end)
+            
+            unique_volunteers, u_period_start, u_period_end = (
+                manager.count_unique_volunteers(attendance_records)
+            )
+            unique_volunteers_period = (u_period_start, u_period_end)
             print()
 
         manager.append_to_summary(
             len(df_filtered),
             return_rate=return_rate,
-            return_rate_period=return_rate_period
+            return_rate_period=return_rate_period,
+            unique_volunteers=unique_volunteers,
+            unique_volunteers_period=unique_volunteers_period
         )
         return 0
 
