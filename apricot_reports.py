@@ -176,6 +176,21 @@ class ApricotReportManager:
             response = self.session.get(url, timeout=30)
             response.raise_for_status()
 
+            # Log response details for debugging
+            content_type = response.headers.get("Content-Type", "unknown")
+            print(f"📝 {report_name} - Status: {response.status_code}")
+            print(f"📝 {report_name} - Content-Type: {content_type}")
+            content_len = len(response.content)
+            print(f"📝 {report_name} - Content Length: {content_len} bytes")
+
+            # Check if we got HTML instead of CSV
+            if "text/html" in content_type.lower():
+                print(
+                    f"⚠️  WARNING: Received HTML instead of CSV "
+                    f"for {report_name}"
+                )
+                print("   This may indicate a login redirect or access denial")
+
             report_name_clean = (
                 report_name.lower().replace("/", "_").replace(" ", "_")
             )
@@ -191,10 +206,6 @@ class ApricotReportManager:
                 print(
                     "❌ CSV validation failed for "
                     f"{report_name}: {validation_error}"
-                )
-                print(
-                    "   File retained for manual review at: "
-                    f"{output_path.absolute()}"
                 )
                 raise ValueError(
                     f"CSV validation failed for {report_name}: "
