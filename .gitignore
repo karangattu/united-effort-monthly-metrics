@@ -34,3 +34,6 @@ env/
 
 .DS_Store
 
+# all csvs except report_summary.csv
+*.csv
+!report_summary.csv
