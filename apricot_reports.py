@@ -58,6 +58,20 @@ class ApricotReportManager:
             tuple: (phpsessid, csrftoken) on success, (None, None) on failure
         """
         load_dotenv()
+        # Prefer Apricot-specific credentials but fall back to legacy env vars
+        username = (
+            os.getenv("APRICOT_USERNAME")
+            or os.getenv("USERNAME")
+        )
+        password = (
+            os.getenv("APRICOT_PASSWORD")
+            or os.getenv("PASSWORD")
+        )
+
+        if not username or not password:
+            print("❌ Missing Apricot credentials in environment variables")
+            return None, None
+
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=not headed)
             page = browser.new_page()
@@ -67,11 +81,11 @@ class ApricotReportManager:
 
                 page.get_by_role("textbox", name="Username").click()
                 username_field = page.get_by_role("textbox", name="Username")
-                username_field.fill(os.getenv("USERNAME"))
+                username_field.fill(value=username)
 
                 page.get_by_role("textbox", name="Password").click()
                 password_field = page.get_by_role("textbox", name="Password")
-                password_field.fill(os.getenv("PASSWORD"))
+                password_field.fill(value=password)
 
                 page.get_by_role("button", name="Log In to Apricot").click()
 

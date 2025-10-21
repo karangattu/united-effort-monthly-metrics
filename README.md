@@ -21,10 +21,12 @@ playwright install chromium
 Create `.env` file in the project root:
 
 ```bash
-USERNAME=your_apricot_username
-PASSWORD=your_apricot_password
+APRICOT_USERNAME=your_apricot_username
+APRICOT_PASSWORD=your_apricot_password
 AIRTABLE_TOKEN=your_airtable_api_token
 ```
+
+Both `APRICOT_*` and legacy `USERNAME`/`PASSWORD` variables are supported, but prefer the Apricot-specific names for clarity.
 
 **⚠️ IMPORTANT:** Never commit `.env` to version control (it's in `.gitignore`)
 

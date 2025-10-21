@@ -26,12 +26,11 @@ jobs:
 
       - name: Download Apricot Reports
         env:
+          APRICOT_USERNAME: ${{ secrets.USERNAME }}
+          APRICOT_PASSWORD: ${{ secrets.PASSWORD }}
           USERNAME: ${{ secrets.USERNAME }}
           PASSWORD: ${{ secrets.PASSWORD }}
           AIRTABLE_TOKEN: ${{ secrets.AIRTABLE_TOKEN }}
-        run: python apricot_reports.py
-
-      - name: Download Apricot Reports
         run: python apricot_reports.py
 
       - name: Fetch and Filter Airtable Data
