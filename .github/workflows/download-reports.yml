@@ -12,6 +12,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v6
@@ -45,32 +47,54 @@ jobs:
           path: report_summary.csv
           retention-days: 30
 
-      - name: Deploy to GitHub Pages
+      - name: Deploy to GitHub Pages (worktree)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          set -euo pipefail
+
           git config --global user.name 'github-actions[bot]'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
-          
-          # Create a temporary directory for gh-pages content
-          mkdir -p gh-pages-deploy
-          cp report_summary.csv index.html gh-pages-deploy/
-          
-          # Switch to gh-pages branch
-          git fetch origin gh-pages || true
-          git checkout gh-pages || git checkout --orphan gh-pages
-          
-          # Clear existing content and copy new files
-          git rm -rf . 2>/dev/null || true
-          cp -r gh-pages-deploy/* .
-          rm -rf gh-pages-deploy
-          
-          # Commit and push if there are changes
-          git add .
+
+          # Prepare deploy directory using a git worktree so we never have to checkout over
+          # the current working tree (avoids uncommitted changes blocking checkout).
+          DEPLOY_DIR=$(mktemp -d)
+          echo "Using deploy dir: $DEPLOY_DIR"
+
+          # Ensure we have full history so we can compare and push correctly
+          git fetch --no-tags --prune origin +refs/heads/gh-pages:refs/remotes/origin/gh-pages || true
+
+          # If gh-pages exists on remote, create worktree from that; otherwise create an orphan branch
+          if git show-ref --verify --quiet refs/remotes/origin/gh-pages; then
+            git worktree add --checkout "$DEPLOY_DIR" origin/gh-pages
+          else
+            # Create empty orphan branch in the worktree
+            git worktree add --detach "$DEPLOY_DIR"
+            (cd "$DEPLOY_DIR" && git checkout --orphan gh-pages)
+          fi
+
+          # Copy the files to the deploy dir
+          cp report_summary.csv index.html "$DEPLOY_DIR"/
+
+          # Commit only if there are changes
+          cd "$DEPLOY_DIR"
+          git add --all
           if git diff --staged --quiet; then
             echo "No changes to commit"
           else
             git commit -m "Update monthly metrics - $(date +'%Y-%m-%d')"
-            git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }} gh-pages
+
+            # Pull remote changes to ensure we're not behind (fast-forward when possible)
+            git fetch origin gh-pages || true
+            if git rev-parse --verify origin/gh-pages >/dev/null 2>&1; then
+              git merge --ff-only origin/gh-pages || true
+            fi
+
+            # Push commits. Use token auth; if branch doesn't exist, create it on remote.
+            git push https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }} HEAD:gh-pages
           fi
-          
-          # Return to main branch
-          git checkout main
+
+          # Cleanup worktree and temporary dir
+          cd $GITHUB_WORKSPACE
+          git worktree remove --force "$DEPLOY_DIR" || true
+          rm -rf "$DEPLOY_DIR"
